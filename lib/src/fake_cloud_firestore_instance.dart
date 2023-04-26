@@ -130,9 +130,9 @@ class FakeFirebaseFirestore implements FirebaseFirestore {
 
   /// Restore the database state from cache.
   void cacheRestore() {
-    _root.addAll(_cachedRoot);
-    _docsData.addAll(_cachedDocsData);
-    _savedDocumentPaths.addAll(_cachedSavedDocumentPaths);
+    _root.addAll(deepCopy(_cachedRoot));
+    _docsData.addAll(deepCopy(_cachedDocsData));
+    _savedDocumentPaths.addAll(deepCopy(_cachedSavedDocumentPaths));
   }
 
   /// Save the current database state to cache.
@@ -141,9 +141,9 @@ class FakeFirebaseFirestore implements FirebaseFirestore {
     cacheClear();
 
     /// Save the current database state to cache.
-    _cachedRoot.addAll(_root);
-    _cachedDocsData.addAll(_docsData);
-    _cachedSavedDocumentPaths.addAll(_savedDocumentPaths);
+    _cachedRoot.addAll(deepCopy(_root));
+    _cachedDocsData.addAll(deepCopy(_docsData));
+    _cachedSavedDocumentPaths.addAll(deepCopy(_savedDocumentPaths));
   }
 
   /// Clear the whole database
