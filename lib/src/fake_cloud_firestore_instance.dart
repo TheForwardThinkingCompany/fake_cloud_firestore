@@ -1,8 +1,7 @@
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_firestore_platform_interface/cloud_firestore_platform_interface.dart'
-    as firestore_interface;
+import 'package:cloud_firestore_platform_interface/cloud_firestore_platform_interface.dart' as firestore_interface;
 import 'package:fake_firebase_security_rules/fake_firebase_security_rules.dart';
 import 'package:flutter/services.dart';
 import 'package:rxdart/rxdart.dart';
@@ -11,6 +10,7 @@ import 'mock_collection_reference.dart';
 import 'mock_document_reference.dart';
 import 'mock_field_value_factory_platform.dart';
 import 'mock_write_batch.dart';
+import 'query_snapshot_stream_manager.dart';
 import 'util.dart';
 
 const allowAllDescription = '''service cloud.firestore {
@@ -30,15 +30,16 @@ class FakeFirebaseFirestore implements FirebaseFirestore {
   /// 'users/abc/friends/foo'
   final Set<String> _savedDocumentPaths = <String>{};
 
+  final Map<String, dynamic> _cachedRoot = <String, dynamic>{};
+  final Map<String, dynamic> _cachedDocsData = <String, dynamic>{};
+  final Set<String> _cachedSavedDocumentPaths = <String>{};
+
   // Auth objects used to test the security of each request.
-  final BehaviorSubject<Map<String, dynamic>?> authObject =
-      BehaviorSubject<Map<String, dynamic>?>();
+  final BehaviorSubject<Map<String, dynamic>?> authObject = BehaviorSubject<Map<String, dynamic>?>();
   final FakeFirebaseSecurityRules securityRules;
 
-  FakeFirebaseFirestore(
-      {Stream<Map<String, dynamic>?>? authObject, String? securityRules})
-      : securityRules =
-            FakeFirebaseSecurityRules(securityRules ?? allowAllDescription) {
+  FakeFirebaseFirestore({Stream<Map<String, dynamic>?>? authObject, String? securityRules})
+      : securityRules = FakeFirebaseSecurityRules(securityRules ?? allowAllDescription) {
     // Wrap the Stream in a BehaviorSubject to access its latest value on
     // demand.
     authObject?.listen(this.authObject.add);
@@ -50,21 +51,19 @@ class FakeFirebaseFirestore implements FirebaseFirestore {
     final segments = path.split('/');
     assert(segments.length % 2 == 1,
         'Invalid document reference. Collection references must have an odd number of segments');
-    return MockCollectionReference(this, path, getSubpath(_root, path),
-        _docsData, getSubpath(_snapshotStreamControllerRoot, path));
+    return MockCollectionReference(
+        this, path, getSubpath(_root, path), _docsData, getSubpath(_snapshotStreamControllerRoot, path));
   }
 
   @override
-  CollectionReference<Map<String, dynamic>> collectionGroup(
-      String collectionId) {
+  CollectionReference<Map<String, dynamic>> collectionGroup(String collectionId) {
     assert(!collectionId.contains('/'), 'Collection ID should not contain "/"');
     return MockCollectionReference(
       this,
       collectionId,
       buildTreeIncludingCollectionId(_root, _root, collectionId, {}),
       _docsData,
-      buildTreeIncludingCollectionId(_snapshotStreamControllerRoot,
-          _snapshotStreamControllerRoot, collectionId, {}),
+      buildTreeIncludingCollectionId(_snapshotStreamControllerRoot, _snapshotStreamControllerRoot, collectionId, {}),
       isCollectionGroup: true,
     );
   }
@@ -82,15 +81,8 @@ class FakeFirebaseFirestore implements FirebaseFirestore {
     assert(segments.length % 2 == 0,
         'Invalid document reference. Document references must have an even number of segments');
     final documentId = segments.last;
-    return MockDocumentReference(
-        this,
-        path,
-        documentId,
-        getSubpath(_root, path),
-        _docsData,
-        _root,
-        getSubpath(_snapshotStreamControllerRoot, path),
-        null);
+    return MockDocumentReference(this, path, documentId, getSubpath(_root, path), _docsData, _root,
+        getSubpath(_snapshotStreamControllerRoot, path), null);
   }
 
   @override
@@ -100,8 +92,7 @@ class FakeFirebaseFirestore implements FirebaseFirestore {
 
   @override
   Future<T> runTransaction<T>(TransactionHandler<T> transactionHandler,
-      {Duration timeout = const Duration(seconds: 30),
-      int maxAttempts = 5}) async {
+      {Duration timeout = const Duration(seconds: 30), int maxAttempts = 5}) async {
     Transaction transaction = _DummyTransaction();
     return await transactionHandler(transaction);
   }
@@ -128,6 +119,40 @@ class FakeFirebaseFirestore implements FirebaseFirestore {
     final encoder = JsonEncoder.withIndent('  ', myEncode);
     final jsonText = encoder.convert(copy);
     return jsonText;
+  }
+
+  /// Clear the cache.
+  void cacheClear() {
+    _cachedRoot.clear();
+    _cachedDocsData.clear();
+    _cachedSavedDocumentPaths.clear();
+  }
+
+  /// Restore the database state from cache.
+  void cacheRestore() {
+    _root.addAll(_cachedRoot);
+    _docsData.addAll(_cachedDocsData);
+    _savedDocumentPaths.addAll(_cachedSavedDocumentPaths);
+  }
+
+  /// Save the current database state to cache.
+  void cacheStore() {
+    /// Clear the cache first.
+    cacheClear();
+
+    /// Save the current database state to cache.
+    _cachedRoot.addAll(_root);
+    _cachedDocsData.addAll(_docsData);
+    _cachedSavedDocumentPaths.addAll(_savedDocumentPaths);
+  }
+
+  /// Clear the whole database
+  void clear() {
+    _root.clear();
+    _docsData.clear();
+    _snapshotStreamControllerRoot.clear();
+    _savedDocumentPaths.clear();
+    QuerySnapshotStreamManager().clear();
   }
 
   Future<void> maybeThrowSecurityException(String path, Method method) async {
@@ -170,8 +195,7 @@ class FakeFirebaseFirestore implements FirebaseFirestore {
   }
 
   void _setupFieldValueFactory() {
-    firestore_interface.FieldValueFactoryPlatform.instance =
-        MockFieldValueFactoryPlatform();
+    firestore_interface.FieldValueFactoryPlatform.instance = MockFieldValueFactoryPlatform();
   }
 
   // Required because FirebaseFirestore' == expects dynamic, while Mock's == expects an object.
@@ -188,13 +212,10 @@ class _DummyTransaction implements Transaction {
   bool _foundWrite = false;
 
   @override
-  Future<DocumentSnapshot<T>> get<T extends Object?>(
-      DocumentReference<T> documentReference) {
+  Future<DocumentSnapshot<T>> get<T extends Object?>(DocumentReference<T> documentReference) {
     if (_foundWrite) {
       throw PlatformException(
-          code: '3',
-          message:
-              'Firestore transactions require all reads to be executed before all writes');
+          code: '3', message: 'Firestore transactions require all reads to be executed before all writes');
     }
     return documentReference.get();
   }
@@ -207,16 +228,14 @@ class _DummyTransaction implements Transaction {
   }
 
   @override
-  Transaction update(
-      DocumentReference documentReference, Map<String, dynamic> data) {
+  Transaction update(DocumentReference documentReference, Map<String, dynamic> data) {
     _foundWrite = true;
     documentReference.update(data);
     return this;
   }
 
   @override
-  Transaction set<T>(DocumentReference<T> documentReference, T data,
-      [SetOptions? options]) {
+  Transaction set<T>(DocumentReference<T> documentReference, T data, [SetOptions? options]) {
     _foundWrite = true;
     documentReference.set(data);
     return this;
