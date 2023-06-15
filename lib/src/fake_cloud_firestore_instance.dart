@@ -35,90 +35,27 @@ class FakeFirebaseFirestore implements FirebaseFirestore {
   final Set<String> _cachedSavedDocumentPaths = <String>{};
 
   // Auth objects used to test the security of each request.
-  final BehaviorSubject<Map<String, dynamic>?> authObject = BehaviorSubject<Map<String, dynamic>?>();
+  final BehaviorSubject<Map<String, dynamic>?> authObject =
+      BehaviorSubject<Map<String, dynamic>?>();
   final FakeFirebaseSecurityRules securityRules;
 
-  FakeFirebaseFirestore({Stream<Map<String, dynamic>?>? authObject, String? securityRules})
-      : securityRules = FakeFirebaseSecurityRules(securityRules ?? allowAllDescription) {
+  FakeFirebaseFirestore(
+      {Stream<Map<String, dynamic>?>? authObject, String? securityRules})
+      : securityRules =
+            FakeFirebaseSecurityRules(securityRules ?? allowAllDescription) {
     // Wrap the Stream in a BehaviorSubject to access its latest value on
     // demand.
     authObject?.listen(this.authObject.add);
     _setupFieldValueFactory();
   }
 
-  @override
-  CollectionReference<Map<String, dynamic>> collection(String path) {
-    final segments = path.split('/');
-    assert(segments.length % 2 == 1,
-        'Invalid document reference. Collection references must have an odd number of segments');
-    return MockCollectionReference(
-        this, path, getSubpath(_root, path), _docsData, getSubpath(_snapshotStreamControllerRoot, path));
-  }
-
-  @override
-  CollectionReference<Map<String, dynamic>> collectionGroup(String collectionId) {
-    assert(!collectionId.contains('/'), 'Collection ID should not contain "/"');
-    return MockCollectionReference(
-      this,
-      collectionId,
-      buildTreeIncludingCollectionId(_root, _root, collectionId, {}),
-      _docsData,
-      buildTreeIncludingCollectionId(_snapshotStreamControllerRoot, _snapshotStreamControllerRoot, collectionId, {}),
-      isCollectionGroup: true,
-    );
-  }
-
-  @override
-  DocumentReference<Map<String, dynamic>> doc(String path) {
-    // Remove the starting '/' if found, like the actual Firestore.
-    if (path.startsWith('/')) {
-      path = path.substring(1);
-    }
-    final segments = path.split('/');
-    // The actual behavior of Firestore for an invalid number of segments
-    // differs by platforms. This library imitates it with assert.
-    // https://github.com/atn832/fake_cloud_firestore/issues/30
-    assert(segments.length % 2 == 0,
-        'Invalid document reference. Document references must have an even number of segments');
-    final documentId = segments.last;
-    return MockDocumentReference(this, path, documentId, getSubpath(_root, path), _docsData, _root,
-        getSubpath(_snapshotStreamControllerRoot, path), null);
-  }
-
-  @override
-  WriteBatch batch() {
-    return MockWriteBatch();
-  }
-
-  @override
-  Future<T> runTransaction<T>(TransactionHandler<T> transactionHandler,
-      {Duration timeout = const Duration(seconds: 30), int maxAttempts = 5}) async {
-    Transaction transaction = _DummyTransaction();
-    return await transactionHandler(transaction);
-  }
-
-  String dump() {
-    final copy = deepCopy(_root);
-
-    // `copy` only contains the categories and sub-categories at this point,
-    // no document data. This loop adds each document to the tree.
-    for (var doc in _docsData.entries) {
-      final docId = doc.key;
-      final docProperties = doc.value;
-      final docCopy = getSubpath(copy, docId);
-      for (var property in docProperties.entries) {
-        // In case there is a conflict between a sub-category name and document
-        // property, the sub-category takes precedence, meaning the returned
-        // json will not return that document property.
-        if (!docCopy.containsKey(property.key)) {
-          docCopy[property.key] = property.value;
-        }
-      }
-    }
-
-    final encoder = JsonEncoder.withIndent('  ', myEncode);
-    final jsonText = encoder.convert(copy);
-    return jsonText;
+  /// Clear the whole database
+  void clear() {
+    _root.clear();
+    _docsData.clear();
+    _snapshotStreamControllerRoot.clear();
+    _savedDocumentPaths.clear();
+    QuerySnapshotStreamManager().clear();
   }
 
   /// Clear the cache.
@@ -146,13 +83,89 @@ class FakeFirebaseFirestore implements FirebaseFirestore {
     _cachedSavedDocumentPaths.addAll(deepCopy(_savedDocumentPaths));
   }
 
-  /// Clear the whole database
-  void clear() {
-    _root.clear();
-    _docsData.clear();
-    _snapshotStreamControllerRoot.clear();
-    _savedDocumentPaths.clear();
-    QuerySnapshotStreamManager().clear();
+  @override
+  CollectionReference<Map<String, dynamic>> collection(String path) {
+    final segments = path.split('/');
+    assert(segments.length % 2 == 1,
+        'Invalid document reference. Collection references must have an odd number of segments');
+    return MockCollectionReference(this, path, getSubpath(_root, path),
+        _docsData, getSubpath(_snapshotStreamControllerRoot, path));
+  }
+
+  @override
+  CollectionReference<Map<String, dynamic>> collectionGroup(
+      String collectionId) {
+    assert(!collectionId.contains('/'), 'Collection ID should not contain "/"');
+    return MockCollectionReference(
+      this,
+      collectionId,
+      buildTreeIncludingCollectionId(_root, _root, collectionId, {}),
+      _docsData,
+      buildTreeIncludingCollectionId(_snapshotStreamControllerRoot,
+          _snapshotStreamControllerRoot, collectionId, {}),
+      isCollectionGroup: true,
+    );
+  }
+
+  @override
+  DocumentReference<Map<String, dynamic>> doc(String path) {
+    // Remove the starting '/' if found, like the actual Firestore.
+    if (path.startsWith('/')) {
+      path = path.substring(1);
+    }
+    final segments = path.split('/');
+    // The actual behavior of Firestore for an invalid number of segments
+    // differs by platforms. This library imitates it with assert.
+    // https://github.com/atn832/fake_cloud_firestore/issues/30
+    assert(segments.length % 2 == 0,
+        'Invalid document reference. Document references must have an even number of segments');
+    final documentId = segments.last;
+    return MockDocumentReference(
+        this,
+        path,
+        documentId,
+        getSubpath(_root, path),
+        _docsData,
+        _root,
+        getSubpath(_snapshotStreamControllerRoot, path),
+        null);
+  }
+
+  @override
+  WriteBatch batch() {
+    return MockWriteBatch();
+  }
+
+  @override
+  Future<T> runTransaction<T>(TransactionHandler<T> transactionHandler,
+      {Duration timeout = const Duration(seconds: 30),
+      int maxAttempts = 5}) async {
+    Transaction transaction = _DummyTransaction();
+    return await transactionHandler(transaction);
+  }
+
+  String dump() {
+    final copy = deepCopy(_root);
+
+    // `copy` only contains the categories and sub-categories at this point,
+    // no document data. This loop adds each document to the tree.
+    for (var doc in _docsData.entries) {
+      final docId = doc.key;
+      final docProperties = doc.value;
+      final docCopy = getSubpath(copy, docId);
+      for (var property in docProperties.entries) {
+        // In case there is a conflict between a sub-category name and document
+        // property, the sub-category takes precedence, meaning the returned
+        // json will not return that document property.
+        if (!docCopy.containsKey(property.key)) {
+          docCopy[property.key] = property.value;
+        }
+      }
+    }
+
+    final encoder = JsonEncoder.withIndent('  ', myEncode);
+    final jsonText = encoder.convert(copy);
+    return jsonText;
   }
 
   Future<void> maybeThrowSecurityException(String path, Method method) async {
@@ -195,7 +208,8 @@ class FakeFirebaseFirestore implements FirebaseFirestore {
   }
 
   void _setupFieldValueFactory() {
-    firestore_interface.FieldValueFactoryPlatform.instance = MockFieldValueFactoryPlatform();
+    firestore_interface.FieldValueFactoryPlatform.instance =
+        MockFieldValueFactoryPlatform();
   }
 
   // Required because FirebaseFirestore' == expects dynamic, while Mock's == expects an object.
@@ -212,10 +226,13 @@ class _DummyTransaction implements Transaction {
   bool _foundWrite = false;
 
   @override
-  Future<DocumentSnapshot<T>> get<T extends Object?>(DocumentReference<T> documentReference) {
+  Future<DocumentSnapshot<T>> get<T extends Object?>(
+      DocumentReference<T> documentReference) {
     if (_foundWrite) {
       throw PlatformException(
-          code: '3', message: 'Firestore transactions require all reads to be executed before all writes');
+          code: '3',
+          message:
+              'Firestore transactions require all reads to be executed before all writes');
     }
     return documentReference.get();
   }
@@ -228,14 +245,16 @@ class _DummyTransaction implements Transaction {
   }
 
   @override
-  Transaction update(DocumentReference documentReference, Map<String, dynamic> data) {
+  Transaction update(
+      DocumentReference documentReference, Map<String, dynamic> data) {
     _foundWrite = true;
     documentReference.update(data);
     return this;
   }
 
   @override
-  Transaction set<T>(DocumentReference<T> documentReference, T data, [SetOptions? options]) {
+  Transaction set<T>(DocumentReference<T> documentReference, T data,
+      [SetOptions? options]) {
     _foundWrite = true;
     documentReference.set(data);
     return this;
