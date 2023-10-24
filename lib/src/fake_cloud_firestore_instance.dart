@@ -50,12 +50,12 @@ class FakeFirebaseFirestore implements FirebaseFirestore {
   }
 
   /// Clear the whole database
-  void clear() {
+  Future<void> clear() {
     _root.clear();
     _docsData.clear();
     _snapshotStreamControllerRoot.clear();
     _savedDocumentPaths.clear();
-    QuerySnapshotStreamManager().clear();
+    return QuerySnapshotStreamManager().clear();
   }
 
   /// Clear the cache.
