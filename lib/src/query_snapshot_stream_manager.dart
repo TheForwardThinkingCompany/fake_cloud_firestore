@@ -22,8 +22,11 @@ class QuerySnapshotStreamManager {
 
   Future<void> clear() {
     final futures = <Future>[];
-    final streamControllers =
-        List.of(_streamCache.values.map((e) => e.values).flattened.map((e) => e.values).flattened);
+    final streamControllers = List.of(_streamCache.values
+        .map((e) => e.values)
+        .flattened
+        .map((e) => e.values)
+        .flattened);
     _streamCache.clear();
     for (final streamController in streamControllers) {
       futures.add(streamController.close());
@@ -88,7 +91,7 @@ class QuerySnapshotStreamManager {
     }
     final exactPathCache = _streamCache[firestore]![path];
     if (exactPathCache != null) {
-      for (final query in exactPathCache.keys) {
+      for (final query in [...exactPathCache.keys]) {
         await query.get().then(exactPathCache[query]!.add);
       }
     }

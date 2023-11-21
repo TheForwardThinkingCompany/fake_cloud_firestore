@@ -87,8 +87,48 @@ void main() {
       whenCalling(Invocation.method(#set, null))
           .on(doc)
           .thenThrow(FirebaseException(plugin: 'firestore'));
+      // Works on the same reference.
       expect(() => doc.set({'name': 'Bob'}), throwsA(isA<FirebaseException>()));
+      // Works on a different reference of the same document.
+      expect(() => instance.collection('users').doc(uid).set({'name': 'Bob'}),
+          throwsA(isA<FirebaseException>()));
+      // Does not affect other documents.
+      expect(
+          () => instance
+              .collection('users')
+              .doc(uid + 'abc')
+              .set({'name': 'Alice'}),
+          returnsNormally);
     });
+
+    test('DocumentReference.get throws exceptions', () async {
+      final instance = FakeFirebaseFirestore();
+      final doc = instance.collection('users').doc(uid);
+      whenCalling(Invocation.method(#get, null))
+          .on(doc)
+          .thenThrow(FirebaseException(plugin: 'firestore'));
+      expect(() => doc.get(), throwsA(isA<FirebaseException>()));
+    });
+
+    test('DocumentReference.delete throws exceptions', () async {
+      final instance = FakeFirebaseFirestore();
+      final doc = instance.collection('users').doc(uid);
+      whenCalling(Invocation.method(#delete, null))
+          .on(doc)
+          .thenThrow(FirebaseException(plugin: 'firestore'));
+      expect(() => doc.delete(), throwsA(isA<FirebaseException>()));
+    });
+
+    test('DocumentReference.update throws exceptions', () async {
+      final instance = FakeFirebaseFirestore();
+      final doc = instance.collection('users').doc(uid);
+      whenCalling(Invocation.method(#update, null))
+          .on(doc)
+          .thenThrow(FirebaseException(plugin: 'firestore'));
+      expect(
+          () => doc.update({'data': 'new'}), throwsA(isA<FirebaseException>()));
+    });
+
     test('DocumentReference.set throws exceptions on certain conditions',
         () async {
       final instance = FakeFirebaseFirestore();

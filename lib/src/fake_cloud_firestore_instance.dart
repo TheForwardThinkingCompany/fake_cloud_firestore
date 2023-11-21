@@ -1,7 +1,8 @@
 import 'dart:convert';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:cloud_firestore_platform_interface/cloud_firestore_platform_interface.dart' as firestore_interface;
+import 'package:cloud_firestore_platform_interface/cloud_firestore_platform_interface.dart'
+    as firestore_interface;
 import 'package:fake_firebase_security_rules/fake_firebase_security_rules.dart';
 import 'package:flutter/services.dart';
 import 'package:rxdart/rxdart.dart';

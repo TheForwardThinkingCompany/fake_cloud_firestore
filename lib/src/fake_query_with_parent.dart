@@ -23,7 +23,8 @@ abstract class FakeQueryWithParent<T extends Object?> implements Query<T> {
   @override
   Stream<QuerySnapshot<T>> snapshots({bool includeMetadataChanges = false}) {
     QuerySnapshotStreamManager().register<T>(this);
-    final controller = QuerySnapshotStreamManager().getStreamController<T>(this);
+    final controller =
+        QuerySnapshotStreamManager().getStreamController<T>(this);
     Stream.fromFuture(get()).listen((event) {
       if (controller.isClosed == false) {
         controller.add(event);
@@ -54,7 +55,8 @@ bool _snapshotEquals(QuerySnapshot snapshot1, QuerySnapshot snapshot2) {
       return false;
     }
 
-    if (!_unorderedDeepEquality.equals(snapshot1.docs[i].data(), snapshot2.docs[i].data())) {
+    if (!_unorderedDeepEquality.equals(
+        snapshot1.docs[i].data(), snapshot2.docs[i].data())) {
       return false;
     }
   }
