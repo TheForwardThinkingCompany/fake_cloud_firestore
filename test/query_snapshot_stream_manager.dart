@@ -21,7 +21,10 @@ void main() {
   /// We're reproducing a foreign key pattern where each document generates a new subscription filtering on itself.
   test('Should allow concurrent cache modifications', () {
     final subscriptions = <StreamSubscription<QuerySnapshot>>[];
-    instance.collection('users').snapshots().listen((QuerySnapshot<Map<String, dynamic>> snapshot) {
+    instance
+        .collection('users')
+        .snapshots()
+        .listen((QuerySnapshot<Map<String, dynamic>> snapshot) {
       for (final docChange in snapshot.docChanges) {
         subscriptions.add(instance
             .collection('users')
