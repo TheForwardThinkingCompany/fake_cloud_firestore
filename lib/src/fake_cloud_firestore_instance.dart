@@ -11,6 +11,7 @@ import 'mock_collection_reference.dart';
 import 'mock_document_reference.dart';
 import 'mock_field_value_factory_platform.dart';
 import 'mock_write_batch.dart';
+import 'query_snapshot_stream_manager.dart';
 import 'util.dart';
 
 const allowAllDescription = '''service cloud.firestore {
@@ -43,6 +44,15 @@ class FakeFirebaseFirestore implements FirebaseFirestore {
     // demand.
     authObject?.listen(this.authObject.add);
     _setupFieldValueFactory();
+  }
+
+  /// Clear the whole database
+  Future<void> clear() {
+    _root.clear();
+    _docsData.clear();
+    _snapshotStreamControllerRoot.clear();
+    _savedDocumentPaths.clear();
+    return QuerySnapshotStreamManager().clear();
   }
 
   @override

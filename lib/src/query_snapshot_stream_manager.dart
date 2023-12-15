@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:collection/collection.dart';
 import 'package:rxdart/rxdart.dart';
 
 import 'fake_query_with_parent.dart';
@@ -23,16 +24,18 @@ class QuerySnapshotStreamManager {
 
   final Map<FakeQueryWithParent, QuerySnapshot> _cacheQuerySnapshot = {};
 
-  void clear() {
-    for (final pathToQueryToStreamController in _streamCache.values) {
-      for (final queryToStreamController
-          in pathToQueryToStreamController.values) {
-        for (final streamController in queryToStreamController.values) {
-          streamController.close();
-        }
-      }
-    }
+  Future<void> clear() {
+    final futures = <Future>[];
+    final streamControllers = List.of(_streamCache.values
+        .map((e) => e.values)
+        .flattened
+        .map((e) => e.values)
+        .flattened);
     _streamCache.clear();
+    for (final streamController in streamControllers) {
+      futures.add(streamController.close());
+    }
+    return Future.wait(futures);
   }
 
   /// Recursively finds the base collection path.
